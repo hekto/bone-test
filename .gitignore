@@ -1,0 +1,4 @@
+__pycache__
+blender-path
+*.blend
+*.json
