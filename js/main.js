@@ -8,6 +8,71 @@ const mouse     = new THREE.Vector2();
 
 let pressed;
 
+const texts = {
+    'label-1': 'GUNS',
+    'label-2': 'POWER',
+    'on': 'ON',
+    'off': 'OFF'
+};
+
+class TextureMaker {
+
+    constructor() {
+
+        this.xyRatio = {
+            'label-large' : 0.2,
+            'label-small' : 0.5
+        };
+
+    }
+
+    drawLabel( type, color, keyword ) {
+
+        const canvas  = document.createElement( 'canvas' );
+        canvas.width  = 512;
+        canvas.height = 512;
+        const ctx     = canvas.getContext( '2d' );
+        const texture = new THREE.Texture( canvas );
+
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        // texture.minFilter = THREE.LinearFilter;
+
+        const xyRatio = this.xyRatio[ type ];
+
+        // document.body.appendChild( canvas );
+
+        const text = texts[ keyword ] || keyword;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 64;
+
+        ctx.font = `bold ${Math.round( canvas.height * 0.8 )}px arial`;
+
+        ctx.fillStyle = color.getStyle();
+        ctx.fillRect( 0,0, canvas.width, canvas.height );
+
+        //ctx.clearRect( 0, 0, 512, 512 );
+        ctx.fillStyle = '#fff';
+        ctx.save();
+        ctx.scale( xyRatio, 1 );
+        ctx.beginPath();
+        ctx.strokeText( text, canvas.width / ( 2 * xyRatio ) ,canvas.height / 2 );
+        ctx.fillText( text, canvas.width / ( 2 * xyRatio ) ,canvas.height / 2 );
+        ctx.restore();
+
+        texture.needsUpdate = true;
+        return texture;
+
+
+    }
+
+}
+
+const textureMaker = new TextureMaker();
+
 const objects = { switch        : {},
                   led           : {},
                   button        : {},
@@ -163,6 +228,10 @@ function init() {
     scene = new THREE.Scene();
     camera.lookAt( scene );
 
+    // // label debugging
+    // camera.position.set( 0, 0.1, 0 );
+    // controls.panLeft( -0.22 );
+
     light = new THREE.AmbientLight( 0xcccccc );
     scene.add( light );
 
@@ -224,19 +293,31 @@ function init() {
             const arr = bone.name.split( '.' );
             let type = arr.shift();
 
-            if ( type === 'label' )
+            let makeTexture = false;
+            if ( type === 'label' ) {
+                makeTexture = true;
                 type = type + '-' + arr.shift();
+            }
 
             const name = arr.shift();
 
             if ( Object.keys( objects ).indexOf( type ) === -1 ) {
-                console.log( 'skipping', type );
+                if ( type !== 'base' )
+                    console.log( 'skipping', type );
                 return;
             }
 
             const ref = meshes[ type ];
             const object = ref.clone();
             object.material = object.material.clone(); // only the dynamic ones?
+            if ( makeTexture ) {
+                object.material.materials.forEach( ( material ) => {
+                    if ( material.name.match( /texture/ ) ) {
+                        material.map = textureMaker.drawLabel( type, material.color, name );
+
+                    }
+                } );
+            }
             bone.add( object );
             objects[ type ][ name ] = object;
             // aSwitch.skeleton.bones[ 0 ].rotation.x = Math.PI / 6;
