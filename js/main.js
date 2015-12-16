@@ -26,7 +26,7 @@ class TextureMaker {
 
     }
 
-    drawLabel( type, color, keyword ) {
+    drawLabel( type, fgColor, bgColor, keyword ) {
 
         const canvas  = document.createElement( 'canvas' );
         canvas.width  = 512;
@@ -51,11 +51,11 @@ class TextureMaker {
 
         ctx.font = `bold ${Math.round( canvas.height * 0.8 )}px arial`;
 
-        ctx.fillStyle = color.getStyle();
+        ctx.fillStyle = bgColor;
         ctx.fillRect( 0,0, canvas.width, canvas.height );
 
         //ctx.clearRect( 0, 0, 512, 512 );
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = fgColor;
         ctx.save();
         ctx.scale( xyRatio, 1 );
         ctx.beginPath();
@@ -136,6 +136,8 @@ function onMouseDown( event ) {
     mouse.y = event.clientY;
 
     const object = getObjectUnderPoint( mouse );
+    if ( !object )
+        return;
     if ( object.name === 'button' ) {
 
         toggleButton( object, true );
@@ -313,8 +315,7 @@ function init() {
             if ( makeTexture ) {
                 object.material.materials.forEach( ( material ) => {
                     if ( material.name.match( /texture/ ) ) {
-                        material.map = textureMaker.drawLabel( type, material.color, name );
-
+                        material.map = textureMaker.drawLabel( type, `#${arr.shift()}`, material.color.getStyle(), name );
                     }
                 } );
             }
