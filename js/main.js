@@ -6,25 +6,113 @@ const meshes = {};
 const raycaster = new THREE.Raycaster();
 const mouse     = new THREE.Vector2();
 
-function onClick( event ) {
+let pressed;
 
-    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+const objects = { switch        : {},
+                  led           : {},
+                  button        : {},
+                  'label-small' : {},
+                  'label-large' : {}
+                };
 
-    raycaster.setFromCamera( mouse, camera );
+const colors = {
+    on  : new THREE.Color( '#009900' ),
+    off : new THREE.Color( '#003300' )
+};
+
+function toggleButton( object, state ) {
+
+    state = !!state;
+
+    const pos = object.skeleton.bones[ 0 ].position;
+    pos.y = state ? -0.005 : 0;
+
+    if ( state )
+        pressed = object;
+
+}
+
+
+function toggleLed( name, state ) {
+
+    const led = objects.led[ name ];
+    if ( !led ) return;
+
+    state = state ? 'on' : 'off';
+
+    led.material.materials.some( material => {
+        if ( material.name.match( /^light/ ) ) {
+            material.color.copy( colors[ state ] );
+            return true;
+        }
+    } );
+
+}
+
+function getObjectUnderPoint( vec2 ) {
+    vec2 = vec2.clone();
+
+    vec2.x =   ( vec2.x / window.innerWidth  ) * 2 - 1;
+    vec2.y = - ( vec2.y / window.innerHeight ) * 2 + 1;
+
+    raycaster.setFromCamera( vec2, camera );
 
     const intersects = raycaster.intersectObjects( scene.children, true );
     if ( intersects.length === 0 )
         return;
 
-    const object = intersects[ 0 ].object;
-    if ( object.name === 'switch' ) {
-        object.skeleton.bones[ 0 ].rotation.x = -object.skeleton.bones[ 0 ].rotation.x;
-    }
+    return intersects[ 0 ].object;
 
 }
 
-window.addEventListener( 'click', onClick, false );
+
+function onMouseDown( event ) {
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
+
+    const object = getObjectUnderPoint( mouse );
+    if ( object.name === 'button' ) {
+
+        toggleButton( object, true );
+
+        // rot.x = -rot.x;
+        // const switchName = object.parent.name.substring( 7 );
+        // toggleLed( switchName, rot.x < 0 );
+    }
+
+
+}
+
+function onMouseUp( event ) {
+
+    if ( pressed ) {
+        toggleButton( pressed );
+        pressed = null;
+    }
+
+    // ignore drag
+    if ( mouse.x !== event.clientX || mouse.y !== event.clientY )
+        return;
+
+    const object = getObjectUnderPoint( mouse );
+    if ( object.name === 'switch' ) {
+
+        const rot = object.skeleton.bones[ 0 ].rotation;
+
+        rot.x = -rot.x;
+        const switchName = object.parent.name.substring( 7 );
+        toggleLed( switchName, rot.x < 0 );
+        return;
+
+    }
+    if ( object.name === 'button' )
+        toggleButton( object, false );
+
+}
+
+
+window.addEventListener( 'mousedown', onMouseDown, false );
+window.addEventListener( 'mouseup', onMouseUp, false );
 
 const canvas = document.createElement( 'canvas' );
 canvas.width = 512;
@@ -49,6 +137,7 @@ function animate() {
 function makeMaterial( spec ) {
 
     const material = spec.shading === 'phong' ? new THREE.MeshPhongMaterial() : new THREE.MeshLambertMaterial();
+    material.name = spec.DbgName;
     material.color.setRGB    ( spec.colorDiffuse [ 0 ], spec.colorDiffuse [ 1 ], spec.colorDiffuse [ 2 ] );
     material.emissive.setRGB ( spec.colorEmissive[ 0 ], spec.colorEmissive[ 1 ], spec.colorEmissive[ 2 ] );
     material.specular.setRGB ( spec.colorSpecular[ 0 ], spec.colorSpecular[ 1 ], spec.colorSpecular[ 2 ] );
@@ -65,7 +154,7 @@ function makeMaterial( spec ) {
 function init() {
 
     camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 0.0001, 100000 );
-    camera.position.set( 0, 0.3, 0.3 );
+    camera.position.set( 0, 0.5, 0.5 );
 
     controls = new THREE.OrbitControls( camera );
     controls.damping = 0.2;
@@ -74,7 +163,7 @@ function init() {
     scene = new THREE.Scene();
     camera.lookAt( scene );
 
-    light = new THREE.AmbientLight( 0x888888 );
+    light = new THREE.AmbientLight( 0xcccccc );
     scene.add( light );
 
 
@@ -83,17 +172,18 @@ function init() {
     light.shadowDarkness = 0.9;
 
     light.position.z = -0.04;
-    light.position.x = 0.2;
-    light.position.y = 0.1;
+    light.position.x = 0.6;
+    light.position.y = 0.2;
 
     light.target.position.set( 0,0,0 );
 
     light.shadowCameraNear = 0.01;
-    light.shadowCameraFar = 1;
-    light.shadowCameraFov = 50;
-    light.shadowMapWidth = 1024;
-    light.shadowMapHeight = 1024;
-    const rad = 0.15;
+    light.shadowCameraFar  = 2;
+    light.shadowCameraFov  = 50;
+    light.shadowMapWidth   = 1024;
+    light.shadowMapHeight  = 1024;
+
+    const rad = 0.4;
 
     light.shadowCameraLeft   = -rad;
     light.shadowCameraRight  =  rad;
@@ -115,17 +205,45 @@ function init() {
 
     window.addEventListener( 'resize', onWindowResize, false );
 
+    function initObjects() {
+
+        Object.keys( objects.switch ).forEach( key => {
+            const s = objects.switch[ key ];
+            s.skeleton.bones[ 0 ].rotation.x = Math.PI / 6;
+        } );
+
+        Object.keys( objects.led ).forEach( name => toggleLed( name, false ) );
+
+    }
+
     function doneLoading() {
         scene.add( meshes.dashboard );
 
         meshes.dashboard.skeleton.bones.forEach( bone => {
 
-            if ( bone.name.split( '.' ).indexOf( 'switch' ) !== -1 ) {
-                const aSwitch = meshes.switch.clone();
-                bone.add( aSwitch );
-                aSwitch.skeleton.bones[ 0 ].rotation.x = Math.PI / 6;
+            const arr = bone.name.split( '.' );
+            let type = arr.shift();
+
+            if ( type === 'label' )
+                type = type + '-' + arr.shift();
+
+            const name = arr.shift();
+
+            if ( Object.keys( objects ).indexOf( type ) === -1 ) {
+                console.log( 'skipping', type );
+                return;
             }
+
+            const ref = meshes[ type ];
+            const object = ref.clone();
+            object.material = object.material.clone(); // only the dynamic ones?
+            bone.add( object );
+            objects[ type ][ name ] = object;
+            // aSwitch.skeleton.bones[ 0 ].rotation.x = Math.PI / 6;
+
         } );
+
+        initObjects();
 
     }
 
@@ -170,8 +288,12 @@ function init() {
 
 
 
-    load( 'dashboard' );
-    load( 'switch' );
+    load( 'dashboard'   );
+    load( 'switch'      );
+    load( 'led'         );
+    load( 'button'      );
+    load( 'label-large' );
+    load( 'label-small' );
 
 }
 
