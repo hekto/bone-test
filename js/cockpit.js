@@ -185,7 +185,7 @@ Cockpit.Button = class extends Cockpit.Control {
     }
     toggle( state ) {
         this.state = state === undefined ? !this.state : !!state;
-        this.position.y = this.state ? -0.005 : 0;
+        this.position.y = this.state ? -0.002 : 0;
         this.dispatch( 'change', this.state );
     }
 
@@ -236,22 +236,32 @@ Cockpit.Label = class extends Cockpit.Gadget {
     makeTexture( size, keyword, fgColor, bgColor ) {
 
         const canvas  = document.createElement( 'canvas' );
-        canvas.width  = 512;
-        canvas.height = 512;
+
+        let scaleX = 1;
+        if ( size === 'large' ) {
+            canvas.height = 256;
+            canvas.width  = 1024;
+            scaleX = 1 / ( Cockpit.labelWidth.large * canvas.height / canvas.width );
+        }
+        if ( size === 'small' ) {
+            canvas.height = 256;
+            canvas.width  = 512;
+            scaleX = 1 / ( Cockpit.labelWidth.small * canvas.height / canvas.width );
+        }
+
         const ctx     = canvas.getContext( '2d' );
         const texture = new THREE.Texture( canvas );
 
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-
-        const widthRatio = Cockpit.labelWidth[ size ];
+        //texture.magFilter = THREE.NearestFilter;
+        //texture.minFilter = THREE.NearestFilter;
 
         const text = Cockpit.labels[ keyword ] || keyword;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
 
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 64;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.round( canvas.height / 10 );
 
         ctx.font = `bold ${Math.round( canvas.height * 0.8 )}px arial`;
 
@@ -260,10 +270,10 @@ Cockpit.Label = class extends Cockpit.Gadget {
 
         ctx.fillStyle = fgColor;
         ctx.save();
-        ctx.scale( 1 / widthRatio, 1 );
+        ctx.scale( scaleX, 1 );
         ctx.beginPath();
-        ctx.strokeText( text, widthRatio * canvas.width / 2 ,canvas.height / 2 );
-        ctx.fillText( text, widthRatio * canvas.width / 2 ,canvas.height / 2 );
+        ctx.strokeText( text, canvas.width / 2 / scaleX ,canvas.height / 2 );
+        ctx.fillText  ( text, canvas.width / 2 / scaleX ,canvas.height / 2 );
         ctx.restore();
 
         texture.needsUpdate = true;
