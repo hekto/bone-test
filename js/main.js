@@ -22,8 +22,13 @@ function start() {
         const led = dashboard.gadgets.led[ gadget.name ];
         if ( led ) gadget.on( 'change', function( state ) { led.toggle( state ); } );
 
-        if ( gadget.name === 'onoff' )
-            console.log( 'TODO: rule them all' );
+        if ( gadget.name === 'onoff' ) {
+            gadget.power = true;
+            dashboard.power = true; // dbg mess here
+            gadget.toggle( true );
+            gadget.on( 'change', state => { if ( state ) dashboard.turnOn(); else dashboard.turnOff(); } );
+        }
+
     } );
 
     Object.keys( dashboard.gadgets.button ).forEach( key => {
@@ -53,6 +58,7 @@ function getObjectUnderPoint( vec2 ) {
 
 
 function onMouseDown( event ) {
+
     mouse.x = event.clientX;
     mouse.y = event.clientY;
 
@@ -67,7 +73,6 @@ function onMouseDown( event ) {
 
 function onMouseUp( event ) {
 
-    console.log( 'mouseup', pressed );
     if ( pressed ) {
         pressed.toggle( false );
         pressed = null;
@@ -201,6 +206,7 @@ function render() {
     // // light.position.y = 0.06;
     // light.position.setLength( 0.3 );
 
+    scene.children.filter( c => c.preRender ).forEach( c => c.preRender() );
     renderer.render( scene, camera );
 
 }

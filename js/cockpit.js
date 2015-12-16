@@ -1,5 +1,10 @@
 "use strict";
 
+// --- Cockpit Gadgets primitives:
+// - Label
+// - Control
+// - Indicator
+
 window.Cockpit = window.Cockpit || {};
 
 Cockpit.meshes = {};
@@ -33,6 +38,9 @@ Cockpit.Dashboard = class {
     constructor( name ) {
 
         this.gadgets = {};
+        this.indicators = [];
+        this.controls = [];
+        this.power = false;
 
         this.mesh = Cockpit.meshes[ name ];
 
@@ -53,43 +61,9 @@ Cockpit.Dashboard = class {
                 console.log( 'skipping', type, arr );
                 return;
             }
-
-
             this.addGadget( bone, type, gadget );
 
-
-
-            // let makeTexture = false;
-            // if ( type === 'label' ) {
-            //     makeTexture = true;
-            //     type = type + '-' + arr.shift();
-            // }
-
-            // const name = arr.shift();
-
-            // if ( Object.keys( objects ).indexOf( type ) === -1 ) {
-            //     if ( type !== 'base' )
-            //         console.log( 'skipping', type );
-            //     return;
-            // }
-
-            // const ref = meshes[ type ];
-            // const object = ref.clone();
-            // object.material = object.material.clone(); // only the dynamic ones?
-            // if ( makeTexture ) {
-            //     object.material.materials.forEach( ( material ) => {
-            //         if ( material.name.match( /texture/ ) ) {
-            //             material.map = textureMaker.drawLabel( type, `#${arr.shift()}`, material.color.getStyle(), name );
-            //         }
-            //     } );
-            // }
-            // bone.add( object );
-            // objects[ type ][ name ] = object;
-            // // aSwitch.skeleton.bones[ 0 ].rotation.x = Math.PI / 6;
-
         } );
-
-
 
     }
     addGadget( bone, type, gadget ) {
@@ -98,8 +72,61 @@ Cockpit.Dashboard = class {
         this.gadgets[ type ][ gadget.name ] = gadget;
         bone.add( gadget.mesh );
 
-    }
+        if ( gadget instanceof Cockpit.Indicator ) this.indicators.push( gadget );
+        if ( gadget instanceof Cockpit.Control   ) this.controls  .push( gadget );
 
+        gadget.parent = this;
+
+    }
+    turnOn() {
+
+        const duration = 1000;
+        const start    = Date.now();
+
+        this.mesh.preRender = () => {
+
+            const delta = ( Date.now() - start ) / duration;
+
+            this.power = true;
+            this.controls.forEach( control => { if ( control.state && !control.power ) control.toggle( true ); } );
+            if ( delta > 1.0 ) {
+                this.mesh.preRender = null;
+                this.indicators.forEach( indicator => indicator.falseState( indicator.state ) );
+                return;
+            }
+
+            let dark = false;
+            if      ( delta < 0.05 ) dark = true;
+            else if ( delta < 0.10 ) dark = false;
+            else if ( delta < 0.30 ) dark = true;
+            else if ( delta < 0.35 ) dark = false;
+            else if ( delta < 0.40 ) dark = true;
+            else if ( delta < 0.45 ) dark = false;
+            else if ( delta < 0.95 ) dark = true;
+
+            this.indicators.forEach( indicator => indicator.setFade( dark ? 0 : 1 ) );
+        };
+
+        this.power = true;
+    }
+    turnOff() {
+        this.power = false;
+
+        const duration = 500;
+        const start    = Date.now();
+
+        this.mesh.preRender = () => {
+
+            const delta = Date.now() - start;
+            if ( delta > duration ) {
+                this.mesh.preRender = null;
+                this.indicators.forEach( indicator => indicator.toggle( false ) );
+                return;
+            }
+            this.indicators.forEach( indicator => indicator.setFade( delta / duration ) );
+        };
+
+    }
 };
 
 Cockpit.Gadget = class extends EventDispatcher {
@@ -109,19 +136,27 @@ Cockpit.Gadget = class extends EventDispatcher {
         super();
         this.name = name;
         this.mesh = mesh.clone();
+        this.power = false;
 
         this.mesh.userData.gadget = this;
 
     }
+    dispatch( type, event ) {
 
+        if ( this.power || ( this.parent && this.parent.power ) )
+            super.dispatch( type, event );
+
+    }
 };
 
+Cockpit.Indicator = class extends Cockpit.Gadget {};
+Cockpit.Control   = class extends Cockpit.Gadget {};
 
-Cockpit.Switch = class extends Cockpit.Gadget  {
+Cockpit.Switch = class extends Cockpit.Control {
 
     constructor( name ) {
 
-        super( name, Cockpit.meshes.switch );
+        super( name, Cockpit.meshes.switch, true );
 
         this.rotation = this.mesh.skeleton.bones[ 0 ].rotation;
         this.toggle( false );
@@ -138,7 +173,7 @@ Cockpit.Switch = class extends Cockpit.Gadget  {
 
 };
 
-Cockpit.Button = class extends Cockpit.Gadget {
+Cockpit.Button = class extends Cockpit.Control {
 
     constructor( name ) {
 
@@ -156,7 +191,7 @@ Cockpit.Button = class extends Cockpit.Gadget {
 
 };
 
-Cockpit.Led = class extends Cockpit.Gadget {
+Cockpit.Led = class extends Cockpit.Indicator {
 
     constructor( name ) {
 
@@ -170,6 +205,15 @@ Cockpit.Led = class extends Cockpit.Gadget {
     toggle( state ) {
         this.state = state === undefined ? !this.state : !!state;
         this.lightMaterial.color.copy( Cockpit.ledColors[ this.state ? 'on' : 'off' ] );
+    }
+    setFade( fade ) {
+
+        if ( !this.state ) return;
+        this.lightMaterial.color.copy( Cockpit.ledColors.on ).lerp( Cockpit.ledColors.off, fade );
+
+    }
+    falseState( state ) {
+        this.lightMaterial.color.copy( Cockpit.ledColors[ state ? 'on' : 'off' ] );
     }
 
 };
@@ -199,11 +243,8 @@ Cockpit.Label = class extends Cockpit.Gadget {
 
         texture.magFilter = THREE.NearestFilter;
         texture.minFilter = THREE.NearestFilter;
-        // texture.minFilter = THREE.LinearFilter;
 
         const widthRatio = Cockpit.labelWidth[ size ];
-
-        // document.body.appendChild( canvas );
 
         const text = Cockpit.labels[ keyword ] || keyword;
         ctx.textBaseline = 'middle';
@@ -217,7 +258,6 @@ Cockpit.Label = class extends Cockpit.Gadget {
         ctx.fillStyle = bgColor;
         ctx.fillRect( 0,0, canvas.width, canvas.height );
 
-        //ctx.clearRect( 0, 0, 512, 512 );
         ctx.fillStyle = fgColor;
         ctx.save();
         ctx.scale( 1 / widthRatio, 1 );
