@@ -24,14 +24,17 @@ function start() {
         } );
     }
 
+    let gaugeMin = 0;
+    let gaugeMax = 1;
+
     setTimeout( () => {
         setAllGauges( 1 );
     }, 500 );
-    let value = 1;
+    let value = gaugeMax;
     setInterval( function() {
 
         if ( !dashboard.power ) return;
-        value = value ? 0 : 1;
+        value = value === gaugeMax ? gaugeMin : gaugeMax;
         setAllGauges( value );
 
     }, 2000 );
@@ -52,7 +55,15 @@ function start() {
 
     Object.keys( dashboard.gadgets.button ).forEach( key => {
         const gadget = dashboard.gadgets.button[ key ];
-        gadget.on( 'change', state => pressed = state ? gadget : null );
+        gadget.on( 'change', state => {
+            if ( state ) {
+                if ( gadget.name === 'drone' ) gaugeMin = 0;
+                if ( gadget.name === 'panic' ) gaugeMin = 0.25;
+                if ( gadget.name === 'a'     ) gaugeMax = 0.75;
+                if ( gadget.name === 'b'     ) gaugeMax = 1;
+            }
+            pressed = state ? gadget : null;
+        } );
     } );
 
 }
