@@ -92,14 +92,17 @@ function onMouseDown( event ) {
 
 function onMouseUp( event ) {
 
-    if ( pressed ) {
-        pressed.toggle( false );
-        pressed = null;
-    }
 
     // ignore drag
-    if ( mouse.x !== event.clientX || mouse.y !== event.clientY )
+    if ( mouse.x !== event.clientX || mouse.y !== event.clientY ) {
+
+        if ( pressed ) {
+            pressed.toggle( false );
+            pressed = null;
+        }
+
         return;
+    }
 
     const object = getObjectUnderPoint( mouse );
     if      ( object.name === 'switch' ) object.userData.gadget.toggle();
