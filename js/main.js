@@ -209,7 +209,7 @@ function init() {
 
     setupLight();
 
-    renderer = new THREE.WebGLRenderer( { antialias: true, logarithmicDepthBuffer: true } );
+    renderer = new THREE.WebGLRenderer( { antialias: true } );
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
