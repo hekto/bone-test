@@ -33,10 +33,11 @@ Cockpit.addMesh = function( name, mesh ) {
 
 };
 
-Cockpit.Dashboard = class {
+Cockpit.Dashboard = class extends EventDispatcher {
 
     constructor( name ) {
 
+        super();
         this.gadgets    = {};
         this.indicators = [];
         this.controls   = [];
@@ -44,6 +45,9 @@ Cockpit.Dashboard = class {
         this.power      = false;
 
         this.mesh = Cockpit.meshes[ name ].clone();
+        this.mesh.preRender = () => {
+            this.dispatch( 'render' );
+        };
 
         this.mesh.skeleton.bones.forEach( bone => {
 
@@ -116,15 +120,16 @@ Cockpit.Dashboard = class {
         const duration = 1000;
         const start    = Date.now();
 
-        this.mesh.preRender = () => {
+        const dashboard = this;
+        this.on( 'render', function onRender() {
 
             const delta = ( Date.now() - start ) / duration;
 
-            this.power = true;
-            this.controls.forEach( control => { if ( control.state && !control.power ) control.toggle( true ); } );
+            dashboard.power = true;
+            dashboard.controls.forEach( control => { if ( control.state && !control.power ) control.toggle( true ); } );
             if ( delta > 1.0 ) {
-                this.mesh.preRender = null;
-                this.indicators.forEach( indicator => indicator.falseState( indicator.state ) );
+                dashboard.off( 'render', onRender );
+                dashboard.indicators.forEach( indicator => indicator.falseState( indicator.state ) );
                 return;
             }
 
@@ -137,8 +142,9 @@ Cockpit.Dashboard = class {
             else if ( delta < 0.45 ) dark = false;
             else if ( delta < 0.95 ) dark = true;
 
-            this.indicators.forEach( indicator => indicator.setFade( dark ? 0 : 1 ) );
-        };
+            dashboard.indicators.forEach( indicator => indicator.setFade( dark ? 0 : 1 ) );
+
+        } );
 
         this.power = true;
     }
@@ -147,19 +153,20 @@ Cockpit.Dashboard = class {
 
         const duration = 500;
         const start    = Date.now();
+        const dashboard = this;
 
-        this.mesh.preRender = () => {
+        this.on( 'render', function onRender() {
 
             const delta = Date.now() - start;
             if ( delta > duration ) {
-                this.mesh.preRender = null;
-                this.indicators.forEach( indicator => indicator.toggle( false ) );
+                dashboard.off( 'render', onRender );
+                dashboard.indicators.forEach( indicator => indicator.toggle( false ) );
                 return;
             }
-            this.indicators.forEach( indicator => indicator.setFade( delta / duration ) );
-            this.gauges.forEach( gauge => gauge.set( 0 ) );
-        };
+            dashboard.indicators.forEach( indicator => indicator.setFade( delta / duration ) );
+            dashboard.gauges.forEach( gauge => gauge.set( 0 ) );
 
+        } );
     }
 };
 
@@ -208,30 +215,33 @@ Cockpit.Gauge     = class extends Cockpit.Gadget {
         this.setWhen = Date.now();
         this.setFrom = this.displayValue;
 
-
         this.value = value;
 
         // 0 is needle up
         // c is from down to 0
 
-        if ( this.timer ) clearInterval( this.timer );
-        this.timer = setInterval( () => {
-            // TODO: preRender.
+        if ( this.onRender ) {
+            this.parent.off( 'render', this.onRender );
+            this.onRender = null;
+        }
 
-            let delta = ( Date.now() - this.setWhen ) / this.unitDuration;
-            if ( value < this.displayValue )
+        const gauge = this;
+        function onRender() {
+
+            let delta = ( Date.now() - gauge.setWhen ) / gauge.unitDuration;
+            if ( value < gauge.displayValue )
                 delta = -delta;
 
-            this.displayValue = this.setFrom + delta;
-            if ( ( delta < 0 && this.displayValue < value ) ||
-                 ( delta > 0 && this.displayValue > value ) ) {
-                this.displayValue = value;
-                clearTimeout( this.timer );
-                this.timer = null;
-            }
-            this.update( this.displayValue );
+            gauge.displayValue = gauge.setFrom + delta;
+            if ( ( delta < 0 && gauge.displayValue < value ) ||
+                 ( delta > 0 && gauge.displayValue > value ) ) {
+                gauge.displayValue = value;
 
-        }, 16 );
+                gauge.parent.off( 'render', onRender );
+            }
+            gauge.update( gauge.displayValue );
+        }
+        this.parent.on( 'render', onRender );
 
     }
 
@@ -316,7 +326,7 @@ Cockpit.Label = class extends Cockpit.Gadget {
 
         const textureMaterial = this.mesh.material.materials.find( material => material.name.match( /^texture/ ) );
         textureMaterial.map = this.makeTexture( size, keyword, '#' + textColorHex, textureMaterial.color.getStyle() );
-        textureMaterial.color.setRGB( 1,1,1 ); // DEBUG
+        textureMaterial.color.setRGB( 1,1,1 ); // BLENDER
 
     }
     makeTexture( size, keyword, fgColor, bgColor ) {
@@ -370,8 +380,8 @@ Cockpit.Label = class extends Cockpit.Gadget {
 };
 
 Cockpit.makeGlass = function( material ) {
-    material.transparent = true;
-    material.opacity = 0.2;
+    material.transparent = true; // BLENDER
+    material.opacity     = 0.2;  // BLENDER
 };
 
 Cockpit.Analog = class extends Cockpit.Gauge {
@@ -383,7 +393,7 @@ Cockpit.Analog = class extends Cockpit.Gauge {
         this.rotation = this.mesh.skeleton.bones[ 0 ].rotation;
         this.mesh.material = this.mesh.material.clone();
         const textureMaterial = this.mesh.material.materials.find( material => material.name.match( /^texture/ ) );
-        textureMaterial.color.setRGB( 1,1,1 ); // DEBUG
+        textureMaterial.color.setRGB( 1,1,1 ); // BLENDER
         textureMaterial.map = this.makeTexture();
 
         this.mesh.material.materials
@@ -516,7 +526,7 @@ Cockpit.Digital = class extends Cockpit.Gauge {
 
         this.mesh.material = this.mesh.material.clone();
         const textureMaterial = this.mesh.material.materials.find( material => material.name.match( /^texture/ ) );
-        textureMaterial.color.setRGB( 1,1,1 ); // DEBUG
+        textureMaterial.color.setRGB( 1,1,1 ); // BLENDER
         textureMaterial.map = this.makeTexture();
 
         this.update( 0 );
@@ -572,8 +582,9 @@ Cockpit.Fake = class extends Cockpit.Gauge {
 
         this.mesh.material = this.mesh.material.clone();
         const textureMaterial = this.mesh.material.materials.find( material => material.name.match( /^texture/ ) );
-        textureMaterial.color.setRGB( 1,1,1 ); // DEBUG
+        textureMaterial.color.setRGB( 1,1,1 ); // BLENDER
         textureMaterial.map = this.makeTexture();
+        this.makeBackground();
 
         this.update( 0 );
 
@@ -589,14 +600,71 @@ Cockpit.Fake = class extends Cockpit.Gauge {
 
         this.texture.needsUpdate = true;
 
-        const ctx  = this.canvas.getContext( '2d' );
-        const unit = this.canvas.height / 64;
-
-
         //texture.magFilter = THREE.NearestFilter;
         //texture.minFilter = THREE.NearestFilter;
 
-        ctx.clearRect( 0,0, this.canvas.width, this.canvas.height );
+        const ctx = this.ctx;
+        const unit = this.unit;
+
+        const c = 1.5 / 13;
+        const pad = Math.round( unit * 0.2 );
+        const cx  = this.canvas.width / 2;
+        const cy  = this.canvas.height / 2;
+        const rad = cx - pad;
+        const rad2 = rad - unit * 1.5;
+        const rad3 = rad2 - unit * 2;
+        const rad4 = rad3 - unit * 3;
+        const rad5 = rad4 - unit * 3;
+
+        let x, y, x2, y2, x3, y3;
+
+        ctx.drawImage( this.bgCanvas, 0, 0 );
+        const val = c + ( value / ( 1 + ( 2.6 * c ) ) );
+
+        x  = cx + rad2 * Math.sin( ( +val ) * -Math.PI * 2 );
+        y  = cy + rad2 * Math.cos( ( +val ) * -Math.PI * 2 );
+        x2 = cx + rad5 * Math.sin( ( +val + 0.005 ) * -Math.PI * 2 );
+        y2 = cy + rad5 * Math.cos( ( +val + 0.005 ) * -Math.PI * 2 );
+        x3 = cx + rad5 * Math.sin( ( +val - 0.005 ) * -Math.PI * 2 );
+        y3 = cy + rad5 * Math.cos( ( +val - 0.005 ) * -Math.PI * 2 );
+
+        ctx.beginPath();
+        ctx.moveTo( cx, cy );
+        ctx.lineTo( x2, y2 );
+        ctx.lineTo( x, y );
+        ctx.lineTo( x3, y3 );
+        ctx.closePath();
+
+        ctx.lineWidth = unit;
+
+        ctx.fillStyle = ctx.strokeStyle = 'rgba( 64,64,64, 0.2 )';
+        ctx.stroke();
+        ctx.fill();
+
+        ctx.lineWidth = 3;
+        ctx.fillStyle = ctx.strokeStyle = this.needle;
+        ctx.stroke();
+        ctx.fill();
+
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc( cx, cy, unit * 3, 0, 2 * Math.PI );
+        ctx.fill();
+        ctx.closePath();
+
+
+    }
+    makeBackground() {
+
+        this.bgCanvas = document.createElement( 'canvas' );
+        this.bgCanvas.width = this.canvas.width;
+        this.bgCanvas.height = this.canvas.height;
+
+        const ctx = this.bgCanvas.getContext( '2d' );
+        const unit = this.unit;
+
+        ctx.fillStyle = this.bg;
+        ctx.fillRect( 0,0, this.bgCanvas.width, this.bgCanvas.height );
 
         ctx.strokeStyle = this.marks;
         ctx.fillStyle   = this.marks;
@@ -604,10 +672,6 @@ Cockpit.Fake = class extends Cockpit.Gauge {
         ctx.font = `bold ${Math.round( unit * 5 )}px arial`;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
-        // ctx.shadowColor = '#333';
-        // ctx.shadowBlur = unit * 0;
-        // ctx.shadowOffsetX = unit * 0.2;
-        // ctx.shadowOffsetY = unit * 0.2;
 
 
         let i, N, angle;
@@ -620,9 +684,9 @@ Cockpit.Fake = class extends Cockpit.Gauge {
         const rad2 = rad - unit * 1.5;
         const rad3 = rad2 - unit * 2;
         const rad4 = rad3 - unit * 3;
-        const rad5 = rad4 - unit * 3;
+        // const rad5 = rad4 - unit * 3;
 
-        let x, y, x2, y2, x3, y3;
+        let x, y, x2, y2;// , x3, y3
 
         ctx.beginPath();
 
@@ -632,11 +696,13 @@ Cockpit.Fake = class extends Cockpit.Gauge {
                 continue;
 
             angle = ( c + ( i / ( N - 1 ) ) * r ) * Math.PI * 2;
+            const cosA = Math.cos( angle );
+            const sinA = Math.sin( angle );
 
-            x  = cx + rad  * Math.sin( angle );
-            y  = cy + rad  * Math.cos( angle );
-            x2 = cx + rad2 * Math.sin( angle );
-            y2 = cy + rad2 * Math.cos( angle );
+            x  = cx + rad  * sinA;
+            y  = cy + rad  * cosA;
+            x2 = cx + rad2 * sinA;
+            y2 = cy + rad2 * cosA;
 
             ctx.moveTo( x, y );
             ctx.lineTo( x2, y2 );
@@ -644,7 +710,6 @@ Cockpit.Fake = class extends Cockpit.Gauge {
         }
         ctx.lineWidth = 0.5 * unit;
         ctx.stroke();
-
 
         ctx.beginPath();
         for ( i = 0, N = this.ticks.length; i < N; i++ ) {
@@ -679,40 +744,6 @@ Cockpit.Fake = class extends Cockpit.Gauge {
 
         }
 
-        const val = c + ( value / ( 1 + ( 2.6 * c ) ) );
-
-        x  = cx + rad2 * Math.sin( ( +val ) * -Math.PI * 2 );
-        y  = cy + rad2 * Math.cos( ( +val ) * -Math.PI * 2 );
-        x2 = cx + rad5 * Math.sin( ( +val + 0.005 ) * -Math.PI * 2 );
-        y2 = cy + rad5 * Math.cos( ( +val + 0.005 ) * -Math.PI * 2 );
-        x3 = cx + rad5 * Math.sin( ( +val - 0.005 ) * -Math.PI * 2 );
-        y3 = cy + rad5 * Math.cos( ( +val - 0.005 ) * -Math.PI * 2 );
-
-        ctx.beginPath();
-        ctx.moveTo( cx, cy );
-        ctx.lineTo( x2, y2 );
-        ctx.lineTo( x, y );
-        ctx.lineTo( x3, y3 );
-        ctx.closePath();
-
-        ctx.lineWidth = unit;
-
-        ctx.fillStyle = ctx.strokeStyle = 'rgba( 64,64,64, 0.2 )';
-        ctx.stroke();
-        ctx.fill();
-
-        ctx.lineWidth = 3;
-        ctx.fillStyle = ctx.strokeStyle = this.needle;
-        ctx.stroke();
-        ctx.fill();
-
-        ctx.fillStyle = '#333';
-        ctx.beginPath();
-        ctx.arc( cx, cy, unit * 3, 0, 2 * Math.PI );
-        ctx.fill();
-
-
-
     }
     makeTexture() {
 
@@ -727,6 +758,10 @@ Cockpit.Fake = class extends Cockpit.Gauge {
         this.canvas  = document.createElement( 'canvas' );
         this.canvas.width  = 1024;
         this.canvas.height = 1024;
+
+        this.ctx  = this.canvas.getContext( '2d' );
+        this.unit = this.canvas.height / 64;
+
         this.texture = new THREE.Texture( this.canvas );
 
         return this.texture;

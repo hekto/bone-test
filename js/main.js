@@ -116,6 +116,7 @@ function onMouseUp( event ) {
     }
 
     const object = getObjectUnderPoint( mouse );
+    if ( !object ) return;
     if      ( object.name === 'switch' ) object.userData.gadget.toggle();
     else if ( object.name === 'button' ) object.userData.gadget.toggle( false );
 
