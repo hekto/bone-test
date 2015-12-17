@@ -17,6 +17,25 @@ function start() {
 
     scene.add( dashboard.mesh );
 
+    function setAllGauges( value ) {
+        Object.keys( dashboard.gauges ).forEach( key => {
+            const gauge = dashboard.gauges[ key ];
+            gauge.set( value );
+        } );
+    }
+
+    setTimeout( () => {
+        setAllGauges( 1 );
+    }, 500 );
+    let value = 1;
+    setInterval( function() {
+
+        if ( !dashboard.power ) return;
+        value = value ? 0 : 1;
+        setAllGauges( value );
+
+    }, 2000 );
+
     Object.keys( dashboard.gadgets.switch ).forEach( key => {
         const gadget = dashboard.gadgets.switch[ key ];
         const led = dashboard.gadgets.led[ gadget.name ];
@@ -170,9 +189,12 @@ function init() {
     scene = new THREE.Scene();
     camera.lookAt( scene );
 
+    // camera.position.set( 0,0.2,0 );
+    // controls.panLeft( -0.2 );
+
     setupLight();
 
-    renderer = new THREE.WebGLRenderer( { antialias: true } );
+    renderer = new THREE.WebGLRenderer( { antialias: true, logarithmicDepthBuffer: true } );
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -255,3 +277,12 @@ load( 'led'         );
 load( 'button'      );
 load( 'label-large' );
 load( 'label-small' );
+load( 'analog-a1'      );
+load( 'analog-a2'      );
+load( 'analog-a3'      );
+load( 'digital-b1'     );
+load( 'digital-b2'     );
+load( 'digital-b3'     );
+load( 'fake-c1'        );
+load( 'fake-c2'        );
+load( 'fake-c3'        );
