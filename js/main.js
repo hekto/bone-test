@@ -145,13 +145,24 @@ function animate() {
 
 }
 
-function makeMaterial( spec ) {
+function makeMaterial( spec, offset ) {
 
     const material = spec.shading === 'phong' ? new THREE.MeshPhongMaterial() : new THREE.MeshLambertMaterial();
     material.name = spec.DbgName;
     material.color.setRGB    ( spec.colorDiffuse [ 0 ], spec.colorDiffuse [ 1 ], spec.colorDiffuse [ 2 ] );
     material.emissive.setRGB ( spec.colorEmissive[ 0 ], spec.colorEmissive[ 1 ], spec.colorEmissive[ 2 ] );
     material.specular.setRGB ( spec.colorSpecular[ 0 ], spec.colorSpecular[ 1 ], spec.colorSpecular[ 2 ] );
+
+    material.transparent = spec.transparent;
+    material.opacity     = spec.opacity;
+    material.shininess   = spec.specularCoef;
+
+    if ( offset ) {
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = 0.01;
+        material.polygonOffsetUnits = -0.01;
+    }
+
     material.blending = THREE[ spec.blending ];
     if ( spec.DbgName.match( 'flat' ) )
         material.shading = THREE.FlatShading;
@@ -261,7 +272,7 @@ function load( name ) {
         const dataMesh = dataScene.children[ 0 ];
         const geo = dataMesh.geometry;
 
-        const materials = geo.matRef.map( makeMaterial );
+        const materials = geo.matRef.map( ( spec ) => makeMaterial( spec, name !== 'dashboard' ) );
         const material = new THREE.MeshFaceMaterial( materials );
 
         let mesh;

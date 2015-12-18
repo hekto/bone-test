@@ -379,11 +379,6 @@ Cockpit.Label = class extends Cockpit.Gadget {
 
 };
 
-Cockpit.makeGlass = function( material ) {
-    material.transparent = true; // BLENDER
-    material.opacity     = 0.2;  // BLENDER
-};
-
 Cockpit.Analog = class extends Cockpit.Gauge {
 
     constructor( name, meshName ) {
@@ -395,10 +390,6 @@ Cockpit.Analog = class extends Cockpit.Gauge {
         const textureMaterial = this.mesh.material.materials.find( material => material.name.match( /^texture/ ) );
         textureMaterial.color.setRGB( 1,1,1 ); // BLENDER
         textureMaterial.map = this.makeTexture();
-
-        this.mesh.material.materials
-            .filter( material => material.name.match( /^glass/ ) )
-            .forEach( Cockpit.makeGlass );
 
         this.update( 0 );
 
@@ -431,7 +422,8 @@ Cockpit.Analog = class extends Cockpit.Gauge {
         //texture.minFilter = THREE.NearestFilter;
         texture.needsUpdate = true;
 
-        // ctx.clearRect( 0,0, canvas.width, canvas.height );
+        ctx.fillStyle = this.bg;
+        ctx.fillRect( 0,0, canvas.width, canvas.height );
 
         ctx.strokeStyle = this.marks;
         ctx.fillStyle   = this.marks;
@@ -531,9 +523,6 @@ Cockpit.Digital = class extends Cockpit.Gauge {
 
         this.update( 0 );
 
-        this.mesh.material.materials
-            .filter( material => material.name.match( /^glass/ ) )
-            .forEach( Cockpit.makeGlass );
     }
     update( value ) {
 
@@ -588,9 +577,6 @@ Cockpit.Fake = class extends Cockpit.Gauge {
 
         this.update( 0 );
 
-        this.mesh.material.materials
-            .filter( material => material.name.match( /^glass/ ) )
-            .forEach( Cockpit.makeGlass );
     }
     update( value ) {
 
