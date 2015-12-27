@@ -267,7 +267,7 @@ let loaded = 0;
 function load( name ) {
     total++;
 
-    loader.load( `${name}.three.json`, ( dataScene ) => {
+    loader.load( `3d-models/${name}.three.json`, ( dataScene ) => {
 
         const dataMesh = dataScene.children[ 0 ];
         const geo = dataMesh.geometry;
